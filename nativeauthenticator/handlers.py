@@ -1,4 +1,4 @@
-import os
+import os, uuid
 from datetime import date
 from datetime import datetime
 from datetime import timezone as tz
@@ -7,6 +7,8 @@ from jinja2 import ChoiceLoader
 from jinja2 import FileSystemLoader
 from jupyterhub.handlers import BaseHandler
 from jupyterhub.handlers.login import LoginHandler
+
+from tornado import gen
 
 try:
     from jupyterhub.scopes import needs_scope
@@ -532,3 +534,34 @@ class DiscardHandler(LocalBase):
                     self.users.delete(user_name)
 
         self.redirect(self.hub.base_url + "authorize")
+
+
+
+class NoPassAuthenticateHandler(BaseHandler):
+    """
+    Responsible for /nopasslogin
+    Creates a new user with a random UUID, and auto starts their server
+    """
+    def initialize(self, force_new_server, process_user):
+        super().initialize()
+        self.force_new_server = force_new_server
+        self.process_user = process_user
+
+    @gen.coroutine
+    def get(self):
+        raw_user = yield self.get_current_user()
+        if raw_user:
+            if self.force_new_server and raw_user.running:
+                # Stop user's current server if it is running
+                # so we get a new one.
+                status = yield raw_user.spawner.poll_and_notify()
+                if status is None:
+                    yield self.stop_single_user(raw_user)
+        else:
+            #если пользователь не найден, создаем нового
+            username = str(uuid.uuid4())
+            raw_user = self.user_from_username(username)
+            self.set_login_cookie(raw_user)
+        user = yield gen.maybe_future(self.process_user(raw_user, self))
+        self.redirect(self.get_next_url(user))
+

@@ -27,6 +27,7 @@ from .handlers import EmailAuthorizationHandler
 from .handlers import LoginHandler
 from .handlers import SignUpHandler
 from .handlers import ToggleAuthorizationHandler
+from .handlers import NoPassAuthenticateHandler
 from .orm import UserInfo
 
 
@@ -168,6 +169,27 @@ class NativeAuthenticator(Authenticator):
     )
 
     allow_2fa = Bool(False, config=True, help="")
+
+    force_new_server = Bool(
+        False,
+        help="""
+        Stop the user's server and start a new one when visiting /hub/nopasslogin
+        When set to True, users going to /hub/nopasslogin will *always* get a
+        new single-user server. When set to False, they'll be
+        redirected to their current session if one exists.
+        """,
+        config=True
+    )
+
+    def process_user(self, user, handler):
+        """
+        Do additional arbitrary things to the created user before spawn.
+        user is a user object, and handler is a TmpAuthenticateHandler object
+        Should return the new user object.
+        This method can be a @tornado.gen.coroutine.
+        Note: This is primarily for overriding in subclasses
+        """
+        return user
 
     def __init__(self, add_new_table=True, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -406,6 +428,10 @@ class NativeAuthenticator(Authenticator):
             (r"/confirm/([^/]*)", EmailAuthorizationHandler),
             (r"/change-password", ChangePasswordHandler),
             (r"/change-password/([^/]+)", ChangePasswordAdminHandler),
+            (r"/nopass-auth", NoPassAuthenticateHandler, {
+                'force_new_server': self.force_new_server,
+                'process_user': self.process_user
+            }),
         ]
         return native_handlers
 
