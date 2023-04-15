@@ -542,14 +542,21 @@ class NoPassAuthenticateHandler(BaseHandler):
     Responsible for /nopasslogin
     Creates a new user with a random UUID, and auto starts their server
     """
-    def initialize(self, force_new_server, process_user):
+    def initialize(self, tmp_user_lifetime, force_new_server, process_user):
         super().initialize()
+        self.tmp_user_lifetime = tmp_user_lifetime
         self.force_new_server = force_new_server
         self.process_user = process_user
 
     @gen.coroutine
     def get(self):
         raw_user = yield self.get_current_user()
+
+        #перед созданием нового пользователя удаляем неактивных старых
+        for user_name, user in list(self.users.items()):
+            if (datetime.utcnow() - user.last_activity).seconds >= self.tmp_user_lifetime:
+                self.users.delete(user_name)
+
         if raw_user:
             if self.force_new_server and raw_user.running:
                 # Stop user's current server if it is running

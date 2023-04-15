@@ -181,10 +181,18 @@ class NativeAuthenticator(Authenticator):
         config=True
     )
 
+    tmp_user_lifetime = Integer(
+        172800,
+        help="""
+        number of seconds when temporary user will alive.
+        """,
+        config=True
+    )
+
     def process_user(self, user, handler):
         """
         Do additional arbitrary things to the created user before spawn.
-        user is a user object, and handler is a TmpAuthenticateHandler object
+        user is a user object, and handler is a NoPassAuthenticateHandler object
         Should return the new user object.
         This method can be a @tornado.gen.coroutine.
         Note: This is primarily for overriding in subclasses
@@ -429,6 +437,7 @@ class NativeAuthenticator(Authenticator):
             (r"/change-password", ChangePasswordHandler),
             (r"/change-password/([^/]+)", ChangePasswordAdminHandler),
             (r"/nopass-auth", NoPassAuthenticateHandler, {
+                'tmp_user_lifetime': self.tmp_user_lifetime,
                 'force_new_server': self.force_new_server,
                 'process_user': self.process_user
             }),
